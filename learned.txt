@@ -1,0 +1,51 @@
+What is blade.php?
+-allow use blade syntax like: {{}} / @if @endif / @foreach @endforeach
+
+
+
+Create laravel project
+	composer create-project laravel/laravel example-app
+
+Run server
+	php artisan serve
+
+Create Controller
+	php artisan make:controller Demo/DemoController
+
+Create Model
+
+Create Middleware
+	php artisan make:middleware EnsureTokenIsValid
+
+======================= Route in web.php ==========================
+
+Route::get('/home',[DemoController::class,'Index'])->name('home');
+
+Route::controller(DemoController::class)->group(function () {
+    Route::get('/home', 'Index')->name('home');
+    Route::get('/contact', 'contact');
+});
+
+
+Either way to set redirect link in <a> tag in html
+
+**** {{ route('home') }} ****
+ 
+**** {{ url('/contact') }} ****
+
+
+======================== Middleware (Imagine a Security Guard at bank or School)========================
+
+!IMPORTANT Be sure register all middlewares in kernel.php
+
+Route::get('/about', 'Index')->name('about')->middleware('check');
+	http://127.0.0.1:8000/about?check=22
+
+
+
+
+
+
+
+
+
