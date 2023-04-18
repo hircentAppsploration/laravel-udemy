@@ -42,10 +42,124 @@ Route::get('/about', 'Index')->name('about')->middleware('check');
 	http://127.0.0.1:8000/about?check=22
 
 
+Route::get('/dashboard', function () {
+    return view('dashboard');
+})->middleware(['auth','verified'])->name('dashboard');
+
+once set verified to middleware, go to User Model and implemennt MustVerifiedEmail
+in order to ensure admin user is verified before login!!!
+
+class User extends Authenticatable implements MustVerifyEmail
+{
+
+}
 
 
+Under Requests/Auth/LoginRequest.php
+this allow admin user not to attempt too many time of login 
+
+public function ensureIsNotRateLimited()
+    {
+        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+            return;
+        }
+
+        event(new Lockout($this));
+
+        $seconds = RateLimiter::availableIn($this->throttleKey());
+
+        throw ValidationException::withMessages([
+            'email' => trans('auth.throttle', [
+                'seconds' => $seconds,
+                'minutes' => ceil($seconds / 60),
+            ]),
+        ]);
+    }
 
 
+============================= Login with Username =================================
+
+under Database/migrations/create_user
+
+before that, let update User model and add column username to it
+
+public function up()
+    {
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('username')->unique();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password');
+            $table->rememberToken();
+            $table->timestamps();
+        });
+    }
+
+public function store(Request $request)
+    {
+        $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+
+		!!! unique:users mean unique username on users table!!!
+            'username' => ['required', 'string', 'max:255','unique:users'],
+
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ]);
+
+        $user = User::create([
+            'name' => $request->name,
+            'username' => $request->username,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+        ]);
+
+        event(new Registered($user));
+
+        Auth::login($user);
+
+        return redirect(RouteServiceProvider::HOME);
+    }
 
 
+Anything that we want to fill when registered,make sure add-on into $fillable arr to let sql insert data
 
+
+class User extends Authenticatable implements MustVerifyEmail
+{
+    
+    protected $fillable = [
+        'name',
+        'username',
+        'email',
+        'password',
+    ];
+
+ }
+
+Finally update login credentials in LoginRequest.php
+public function rules()
+    {
+        return [
+            'username' => ['required', 'string'],
+            'password' => ['required', 'string'],
+        ];
+    }
+
+
+    public function authenticate()
+    {
+        $this->ensureIsNotRateLimited();
+
+        if (! Auth::attempt($this->only('username', 'password'), $this->boolean('remember'))) {
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'username' => trans('auth.failed'),
+            ]);
+        }
+
+        RateLimiter::clear($this->throttleKey());
+    }
